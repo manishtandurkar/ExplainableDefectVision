@@ -1,28 +1,210 @@
-# Ignore Python cache files
+# ===================================
+# Python
+# ===================================
+# Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
+*$py.class
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
+*.whl
 
-# Ignore Jupyter Notebook checkpoints
-.ipynb_checkpoints/
-
-# Ignore virtual environment folders
+# Virtual environments
 venv/
 env/
+ENV/
+.venv/
+.env/
+virtualenv/
 
-# Ignore dataset files
-#data/
+# PyInstaller
+*.manifest
+*.spec
+
+# Unit test / coverage reports
+htmlcov/
+.tox/
+.nox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+.hypothesis/
+.pytest_cache/
+
+# ===================================
+# Jupyter Notebook
+# ===================================
+.ipynb_checkpoints/
+*/.ipynb_checkpoints/*
+*.ipynb_checkpoints
+
+# ===================================
+# IDEs and Editors
+# ===================================
+# VS Code
+.vscode/
+*.code-workspace
+
+# PyCharm
+.idea/
+*.iml
+
+# Spyder
+.spyderproject
+.spyproject
+
+# ===================================
+# Data & Models (Uncomment as needed)
+# ===================================
+# Large datasets
+data/
+#*.csv
+#*.tsv
 #*.zip
+#*.tar.gz
+#*.rar
 
-# Ignore model checkpoints and saved models
+# Model files (uncomment to ignore)
 #models/
 #*.pt
+#*.pth
+#*.h5
+#*.pkl
+#*.pickle
+#*.joblib
+#*.onnx
+#*.pb
+#checkpoints/
 
-# Ignore visualization outputs
+# ===================================
+# Outputs & Visualizations
+# ===================================
 visualizations/
+outputs/
+logs/
+*.log
+experiments/
+results/
 
-# Ignore Streamlit temporary files
+# ===================================
+# ML/AI Frameworks
+# ===================================
+# TensorFlow
+*.ckpt
+*.ckpt.*
+events.out.tfevents.*
+
+# PyTorch
+lightning_logs/
+
+# MLflow
+mlruns/
+
+# Weights & Biases
+wandb/
+
+# ===================================
+# Streamlit
+# ===================================
 .streamlit/
+secrets.toml
 
-# Ignore system files
+# ===================================
+# Node.js / React
+# ===================================
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+package-lock.json
+yarn.lock
+.pnp
+.pnp.js
+
+# Build outputs
+/web-app/build/
+/web-app/dist/
+/web-app/.next/
+/web-app/out/
+
+# ===================================
+# Environment Variables
+# ===================================
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# ===================================
+# OS & System Files
+# ===================================
+# macOS
 .DS_Store
+.AppleDouble
+.LSOverride
+._*
+
+# Windows
 Thumbs.db
+Thumbs.db:encryptable
+ehthumbs.db
+ehthumbs_vista.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# Linux
+*~
+.directory
+.Trash-*
+
+# ===================================
+# Temporary Files
+# ===================================
+*.tmp
+*.temp
+*.swp
+*.swo
+*.bak
+*.backup
+*~
+
+# ===================================
+# API Keys & Credentials
+# ===================================
+*.key
+*.pem
+credentials.json
+config.json
+secrets.yaml
+
+# ===================================
+# Documentation Build
+# ===================================
+docs/_build/
+site/
+
+# ===================================
+# Database
+# ===================================
+*.db
+*.sqlite
+*.sqlite3
+
+# ===================================
+# Compressed Files (Optional)
+# ===================================
+#*.7z
+#*.dmg
+#*.gz
+#*.iso
+#*.jar
+#*.rar
+#*.tar
+#*.zip

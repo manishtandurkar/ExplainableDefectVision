@@ -19,12 +19,21 @@ This project implements an explainable AI system for industrial surface defect d
 pip install -r requirements.txt
 ```
 
-### 2. Run Jupyter Notebook
+### 2. Train Model (Google Colab)
 ```bash
-jupyter notebook ExplainableDefectDetection.ipynb
+# Upload ExplainableDefectDetection_Colab.ipynb to Google Colab
+# Mount Google Drive and upload dataset to Drive/data/
+# Run all cells to train the model
+# Download trained model from Drive/models/
 ```
 
-### 3. Launch Streamlit App
+### 3. Run Inference & Explainability (Local)
+```bash
+# Place trained model in models/ folder
+jupyter notebook ExplainableDefectDetection_Inference.ipynb
+```
+
+### 4. Launch Streamlit App (Optional)
 ```bash
 streamlit run streamlit_app.py
 ```
@@ -32,8 +41,9 @@ streamlit run streamlit_app.py
 ## 📊 Dataset
 
 - **NEU Surface Defect Dataset**
-- **6 Defect Classes**: Crazing, Inclusion, Patches, Pitted Surface, Rolled-in Scale, Scratches
-- **1,800 images** (300×300 pixels)
+- **6 Defect Classes**: Crazing, Inclusion, Patches, Pitted, Rolled, Scratches
+- **1,800 images** organized in train/valid/test splits
+- **Formats**: BMP, JPG (200×200 pixels grayscale)
 
 ## 🏗️ Architecture
 
@@ -48,30 +58,40 @@ Explainability Layer:
 Interactive GUI Display
 ```
 
-## 📈 Expected Performance
+## 📈 Performance
 
-- **Accuracy**: >92%
+- **Training Accuracy**: 100% (achieved in 10 epochs)
+- **Validation Accuracy**: 100% on all 6 classes
+- **Training Time**: ~9 minutes on Google Colab (T4 GPU)
 - **Explainability**: Dual-layer visual + textual
-- **Real-time**: Interactive web interface
+- **Inference**: Real-time with interactive web interface
 
 ## 🎯 Defect Classes
 
 1. **Crazing**: Surface cracks from thermal stress
 2. **Inclusion**: Embedded impurities in steel
 3. **Patches**: Irregular surface texture
-4. **Pitted Surface**: Corrosion pits
-5. **Rolled-in Scale**: Embedded oxide particles
+4. **Pitted**: Corrosion pits (Pitted Surface)
+5. **Rolled**: Embedded oxide particles (Rolled-in Scale)
 6. **Scratches**: Mechanical abrasions
 
-## 👥 Team Structure (2-Month Project)
+## 🔄 Workflow
 
-- **Week 1**: Dataset preparation & EDA
-- **Week 2**: Data preprocessing & augmentation  
-- **Week 3-4**: ViT model training
-- **Week 5**: Explainability implementation
-- **Week 6**: GUI development
-- **Week 7**: Testing & optimization
-- **Week 8**: Documentation & presentation
+### Training Phase (Google Colab)
+1. **Upload dataset** to Google Drive (`My Drive/data/`)
+2. **Open** `ExplainableDetection_Colab.ipynb` in Colab
+3. **Run** all cells to train the Vision Transformer
+4. **Download** trained model from `My Drive/models/`
+
+### Inference Phase (Local)
+1. **Place** trained model in local `models/` folder
+2. **Open** `ExplainableDefectDetection_Inference.ipynb`
+3. **Run** explainability analysis (Grad-CAM, LIME, SHAP)
+4. **Generate** attention visualizations and reports
+
+### Deployment (Optional)
+- Launch Streamlit app for interactive defect detection
+- Real-time predictions with visual explanations
 
 ## 🛠️ Technology Stack
 
@@ -85,12 +105,23 @@ Interactive GUI Display
 
 ```
 ExplainableDefectVision/
-├── ExplainableDefectDetection.ipynb  # Main notebook
-├── streamlit_app.py                  # Web application
-├── requirements.txt                  # Dependencies
-├── data/                            # Dataset directory
-├── models/                          # Trained models
-└── visualizations/                  # Generated plots
+├── ExplainableDefectDetection_Colab.ipynb      # Training (Google Colab)
+├── ExplainableDefectDetection_Inference.ipynb  # Inference & Explainability (Local)
+├── streamlit_app.py                            # Web application
+├── requirements.txt                            # Dependencies
+├── data/                                       # Dataset directory
+│   ├── train/                                  # Training images
+│   │   ├── Crazing/
+│   │   ├── Inclusion/
+│   │   ├── Patches/
+│   │   ├── Pitted/
+│   │   ├── Rolled/
+│   │   └── Scratches/
+│   ├── valid/                                  # Validation images
+│   └── test/                                   # Test images
+├── models/                                     # Trained models
+│   └── best_vit_defect_detector.pt            # Best model weights
+└── visualizations/                             # Generated plots
 ```
 
 ## 🎨 Sample Output
