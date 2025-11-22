@@ -16,34 +16,87 @@ This project implements an explainable AI system for industrial surface defect d
 
 ### 1. Installation
 ```bash
+# Clone the repository
+git clone https://github.com/manishtandurkar/ExplainableDefectVision.git
+cd ExplainableDefectVision
+
+# Install dependencies
 pip install -r requirements.txt
 ```
 
-### 2. Train Model (Google Colab)
-```bash
-# Upload ExplainableDefectDetection_Colab.ipynb to Google Colab
-# Mount Google Drive and upload dataset to Drive/data/
-# Run all cells to train the model
-# Download trained model from Drive/models/
+### 2. Download Dataset
+
+**Option A: Manual Download**
+1. Visit [Kaggle NEU Metal Surface Defects Dataset](https://www.kaggle.com/datasets/fantacher/neu-metal-surface-defects-data)
+2. Download the dataset (requires Kaggle account)
+3. Extract to `data/` folder with the following structure:
+```
+data/
+├── train/
+│   ├── Crazing/
+│   ├── Inclusion/
+│   ├── Patches/
+│   ├── Pitted/
+│   ├── Rolled/
+│   └── Scratches/
+├── valid/
+│   └── [same structure]
+└── test/
+    └── [same structure]
 ```
 
-### 3. Run Inference & Explainability (Local)
+**Option B: Using Kaggle API**
+```bash
+# Install Kaggle CLI
+pip install kaggle
+
+# Set up Kaggle credentials (get from kaggle.com/account)
+# Place kaggle.json in ~/.kaggle/ (Linux/Mac) or C:\Users\<username>\.kaggle\ (Windows)
+
+# Download dataset
+kaggle datasets download -d fantacher/neu-metal-surface-defects-data
+
+# Extract and organize into train/valid/test splits
+unzip neu-metal-surface-defects-data.zip -d data/
+```
+
+### 3. Train Model (Google Colab)
+```bash
+# 1. Upload dataset to Google Drive
+#    Create folder: My Drive/data/
+#    Upload the organized dataset (train/valid/test folders with 6 class subfolders each)
+
+# 2. Upload ExplainableDefectDetection_Colab.ipynb to Google Colab
+
+# 3. In Colab, mount Google Drive when prompted
+#    The notebook will automatically access data from Drive/data/
+
+# 4. Run all cells to train the model
+#    Model checkpoints will be saved to Drive/models/
+
+# 5. Download trained model (best_vit_defect_detector.pt) from Drive/models/
+#    Place in local models/ folder for inference
+```
+
+### 4. Run Inference & Explainability (Local)
 ```bash
 # Place trained model in models/ folder
 jupyter notebook ExplainableDefectDetection_Inference.ipynb
 ```
 
-### 4. Launch Streamlit App (Optional)
+### 5. Launch Streamlit App (Optional)
 ```bash
 streamlit run streamlit_app.py
 ```
 
 ## 📊 Dataset
 
-- **NEU Surface Defect Dataset**
+- **NEU Surface Defect Dataset** ([Kaggle Link](https://www.kaggle.com/datasets/fantacher/neu-metal-surface-defects-data))
+- **Source**: Northeastern University (NEU) Metal Surface Defects Database
 - **6 Defect Classes**: Crazing, Inclusion, Patches, Pitted, Rolled, Scratches
-- **1,800 images** organized in train/valid/test splits
+- **1,800 images** (300 per class) organized in train/valid/test splits
 - **Formats**: BMP, JPG (200×200 pixels grayscale)
+- **Application**: Hot-rolled steel strip surface inspection
 
 ## 🏗️ Architecture
 
@@ -78,10 +131,13 @@ Interactive GUI Display
 ## 🔄 Workflow
 
 ### Training Phase (Google Colab)
-1. **Upload dataset** to Google Drive (`My Drive/data/`)
-2. **Open** `ExplainableDetection_Colab.ipynb` in Colab
-3. **Run** all cells to train the Vision Transformer
-4. **Download** trained model from `My Drive/models/`
+1. **Upload dataset** to Google Drive in organized structure:
+   - Create `My Drive/data/train/`, `My Drive/data/valid/`, `My Drive/data/test/`
+   - Each folder should contain 6 subfolders: Crazing, Inclusion, Patches, Pitted, Rolled, Scratches
+2. **Open** `ExplainableDefectDetection_Colab.ipynb` in Colab
+3. **Mount** Google Drive when prompted (click the folder icon or run mount cell)
+4. **Run** all cells to train the Vision Transformer
+5. **Download** trained model from `My Drive/models/best_vit_defect_detector.pt`
 
 ### Inference Phase (Local)
 1. **Place** trained model in local `models/` folder

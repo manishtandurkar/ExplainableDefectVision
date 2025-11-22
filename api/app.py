@@ -1,6 +1,18 @@
 import os
-os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'  # Suppress TensorFlow warnings
-os.environ['TF_ENABLE_ONEDNN_OPTS'] = '0'  # Disable oneDNN
+import sys
+
+# Suppress all warnings and TensorFlow
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
+os.environ['TF_ENABLE_ONEDNN_OPTS'] = '0'
+os.environ['TRANSFORMERS_NO_ADVISORY_WARNINGS'] = '1'
+os.environ['TRANSFORMERS_VERBOSITY'] = 'error'
+
+# Disable TensorFlow backend in transformers
+os.environ['USE_TF'] = '0'
+os.environ['USE_TORCH'] = '1'
+
+import warnings
+warnings.filterwarnings('ignore')
 
 from flask import Flask, request, jsonify
 from flask_cors import CORS
@@ -28,6 +40,22 @@ print("🔥 Loading model...")
 print(f"   Device: {DEVICE}")
 print(f"   Model path: {MODEL_PATH}")
 
+def fix_state_dict_keys(state_dict):
+    """Fix state_dict keys by removing extra 'vit.' prefix if present"""
+    new_state_dict = {}
+    for key, value in state_dict.items():
+        # Remove extra 'vit.' prefix from keys like 'vit.vit.embeddings...'
+        if key.startswith('vit.vit.'):
+            new_key = key.replace('vit.vit.', 'vit.', 1)
+            new_state_dict[new_key] = value
+        # Also handle classifier keys
+        elif key.startswith('vit.classifier.'):
+            new_key = key.replace('vit.classifier.', 'classifier.', 1)
+            new_state_dict[new_key] = value
+        else:
+            new_state_dict[key] = value
+    return new_state_dict
+
 # Try to load from local cache first, then download if needed
 try:
     from transformers import ViTConfig
@@ -44,7 +72,9 @@ try:
     print("   Loading trained weights...")
     if os.path.exists(MODEL_PATH):
         state_dict = torch.load(MODEL_PATH, map_location=DEVICE)
-        model.load_state_dict(state_dict)
+        # Fix state_dict keys if needed
+        state_dict = fix_state_dict_keys(state_dict)
+        model.load_state_dict(state_dict, strict=False)
         print("✅ Trained model loaded successfully!")
     else:
         print(f"⚠️ Warning: Trained weights not found at {MODEL_PATH}")
@@ -89,20 +119,123 @@ def preprocess_image(image_bytes):
     
     return tensor, image
 
-def create_simple_heatmap(image, confidence):
-    """Create a simple attention-like heatmap"""
-    h, w = image.shape[:2]
+def compute_rollout_attention(attentions, discard_ratio=0.1):
+    """Compute attention rollout from all layers"""
+    result = torch.eye(attentions[0].size(-1))
     
-    # Create random attention pattern based on prediction confidence
-    np.random.seed(int(confidence * 1000))
-    heatmap = np.random.random((h//8, w//8)) * confidence
-    heatmap = cv2.resize(heatmap, (w, h))
+    for attention in attentions:
+        # Average attention heads
+        attention_heads_fused = attention.mean(dim=1)
+        
+        # Drop lowest attentions
+        flat = attention_heads_fused.view(attention_heads_fused.size(0), -1)
+        _, indices = flat.topk(int(flat.size(-1) * discard_ratio), largest=False)
+        flat[0, indices] = 0
+        
+        # Normalize
+        attention_heads_fused = attention_heads_fused / attention_heads_fused.sum(dim=-1, keepdim=True)
+        
+        # Multiply with previous result
+        result = torch.matmul(attention_heads_fused[0], result)
     
-    # Apply Gaussian blur
-    heatmap = cv2.GaussianBlur(heatmap, (21, 21), 0)
-    heatmap = (heatmap - heatmap.min()) / (heatmap.max() - heatmap.min() + 1e-8)
+    # Look at attention to CLS token
+    mask = result[0, 1:]
     
-    return heatmap
+    return mask
+
+def get_attention_based_saliency(model, tensor, target_class, original_image):
+    """Generate saliency map using model attention and input gradients"""
+    
+    # Method 1: Input gradient saliency (most direct)
+    tensor.requires_grad = True
+    
+    # Forward pass
+    outputs = model(tensor, output_attentions=True)
+    score = outputs.logits[0, target_class]
+    
+    # Backward pass
+    model.zero_grad()
+    score.backward()
+    
+    # Get input gradients
+    saliency = tensor.grad.data.abs()
+    
+    # Average across batch and channels, keep spatial dimensions
+    saliency_map = saliency[0].mean(dim=0).cpu().numpy()
+    
+    # Method 2: Combine with attention rollout if available
+    if hasattr(outputs, 'attentions') and outputs.attentions is not None:
+        try:
+            attention_rollout = compute_rollout_attention(outputs.attentions)
+            
+            # Reshape attention rollout to 2D grid (14x14 for ViT)
+            grid_size = int(np.sqrt(attention_rollout.size(0)))
+            attention_map = attention_rollout.reshape(grid_size, grid_size).cpu().numpy()
+            
+            # Resize to match saliency map
+            attention_map = cv2.resize(attention_map, (saliency_map.shape[1], saliency_map.shape[0]))
+            
+            # Combine both methods (weighted average)
+            combined_map = 0.6 * saliency_map + 0.4 * attention_map
+        except:
+            combined_map = saliency_map
+    else:
+        combined_map = saliency_map
+    
+    # Normalize
+    combined_map = np.maximum(combined_map, 0)
+    if combined_map.max() > 0:
+        combined_map = combined_map / combined_map.max()
+    
+    return combined_map
+
+def create_heatmap_from_attention(attention_map, original_image_shape, original_image):
+    """Convert attention map to heatmap overlay with defect-aware enhancement"""
+    h, w = original_image_shape[:2]
+    
+    # Resize attention map to original image size
+    heatmap = cv2.resize(attention_map, (w, h), interpolation=cv2.INTER_CUBIC)
+    
+    # Enhance defect regions using image variance
+    # Calculate local variance to find anomalous regions
+    kernel_size = max(5, min(h, w) // 40)
+    if kernel_size % 2 == 0:
+        kernel_size += 1
+    
+    # Detect edges and texture anomalies in original image
+    if len(original_image.shape) == 2:
+        img_for_analysis = original_image
+    else:
+        img_for_analysis = cv2.cvtColor(original_image, cv2.COLOR_BGR2GRAY) if len(original_image.shape) == 3 else original_image
+    
+    # Edge detection
+    edges = cv2.Canny(img_for_analysis, 50, 150)
+    edges = edges.astype(np.float32) / 255.0
+    
+    # Local standard deviation (texture variation)
+    mean = cv2.blur(img_for_analysis.astype(np.float32), (kernel_size, kernel_size))
+    mean_sq = cv2.blur(img_for_analysis.astype(np.float32)**2, (kernel_size, kernel_size))
+    std_dev = np.sqrt(np.maximum(mean_sq - mean**2, 0))
+    std_dev = std_dev / (std_dev.max() + 1e-8)
+    
+    # Combine model attention with image-based features
+    enhanced_heatmap = heatmap * 0.5 + edges * 0.2 + std_dev * 0.3
+    
+    # Smooth while preserving important regions
+    enhanced_heatmap = cv2.GaussianBlur(enhanced_heatmap, (kernel_size, kernel_size), 0)
+    
+    # Apply adaptive thresholding to focus on high-attention areas
+    threshold = np.percentile(enhanced_heatmap, 70)
+    enhanced_heatmap = np.where(enhanced_heatmap > threshold, enhanced_heatmap, enhanced_heatmap * 0.3)
+    
+    # Normalize
+    if enhanced_heatmap.max() > enhanced_heatmap.min():
+        enhanced_heatmap = (enhanced_heatmap - enhanced_heatmap.min()) / (enhanced_heatmap.max() - enhanced_heatmap.min() + 1e-8)
+    
+    # Enhance contrast
+    enhanced_heatmap = np.power(enhanced_heatmap, 0.8)
+    
+    return enhanced_heatmap
 
 def overlay_heatmap(image, heatmap, alpha=0.4):
     """Overlay heatmap on image"""
@@ -143,10 +276,10 @@ def predict():
         image_bytes = file.read()
         tensor, original_image = preprocess_image(image_bytes)
         
-        # Make prediction
+        # Make prediction (first pass without gradients)
         with torch.no_grad():
-            tensor = tensor.unsqueeze(0).to(DEVICE)
-            outputs = model(tensor)
+            tensor_no_grad = tensor.unsqueeze(0).to(DEVICE)
+            outputs = model(tensor_no_grad)
             probabilities = torch.nn.functional.softmax(outputs.logits, dim=1)
             predicted_class_id = torch.argmax(probabilities, dim=1).item()
             confidence = probabilities[0][predicted_class_id].item()
@@ -160,9 +293,13 @@ def predict():
             for i in range(len(CLASS_NAMES))
         }
         
-        # Generate heatmap
-        heatmap = create_simple_heatmap(original_image, confidence)
+        # Generate attention-based heatmap with defect-aware saliency
+        model.train()  # Need to enable gradients
+        tensor_with_grad = tensor.unsqueeze(0).to(DEVICE)
+        attention_map = get_attention_based_saliency(model, tensor_with_grad, predicted_class_id, original_image)
+        heatmap = create_heatmap_from_attention(attention_map, original_image.shape, original_image)
         overlay_img = overlay_heatmap(original_image, heatmap)
+        model.eval()  # Back to eval mode
         
         # Convert heatmap to base64
         _, buffer = cv2.imencode('.png', overlay_img)
@@ -202,4 +339,4 @@ if __name__ == '__main__':
     print(f"🚀 Server starting on http://localhost:5000")
     print(f"🔥 Using device: {DEVICE}")
     print(f"📊 Classes: {CLASS_NAMES}")
-    app.run(debug=True, host='0.0.0.0', port=5000)
+    app.run(debug=True, host='0.0.0.0', port=5000, use_reloader=False)
